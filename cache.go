@@ -5,21 +5,21 @@ import (
 	"time"
 )
 
-type item struct {
-	value      interface{}
+type item[V any] struct {
+	value      V
 	expiryTime time.Time
 }
 
-type Cache struct {
+type Cache[K comparable, V any] struct {
 	mu    sync.Mutex
-	items map[string]item
+	items map[K]item[V]
 	ttl   time.Duration
 	done  chan struct{}
 }
 
-func NewCache(ttl time.Duration) *Cache {
-	c := &Cache{
-		items: make(map[string]item),
+func NewCache[K comparable, V any](ttl time.Duration) *Cache[K, V] {
+	c := &Cache[K, V]{
+		items: make(map[K]item[V]),
 		ttl:   ttl,
 		done:  make(chan struct{}),
 	}
@@ -29,16 +29,16 @@ func NewCache(ttl time.Duration) *Cache {
 	return c
 }
 
-func (c *Cache) Close() {
+func (c *Cache[K, V]) Close() {
 	close(c.done)
 }
 
-func (c *Cache) GetAll() map[string]interface{} {
+func (c *Cache[K, V]) GetAll() map[K]V {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	now := time.Now()
-	result := make(map[string]interface{}, len(c.items))
+	result := make(map[K]V, len(c.items))
 
 	for k, it := range c.items {
 		if now.Before(it.expiryTime) {
@@ -51,30 +51,31 @@ func (c *Cache) GetAll() map[string]interface{} {
 	return result
 }
 
-func (c *Cache) Set(key string, value interface{}) {
+func (c *Cache[K, V]) Set(key K, value V) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.items[key] = item{
+	c.items[key] = item[V]{
 		value:      value,
 		expiryTime: time.Now().Add(c.ttl),
 	}
 }
 
-func (c *Cache) Get(key string) (interface{}, bool) {
+func (c *Cache[K, V]) Get(key K) (V, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	it, ok := c.items[key]
 	if !ok || time.Now().After(it.expiryTime) {
 		delete(c.items, key)
-		return nil, false
+		var zero V
+		return zero, false
 	}
 
 	return it.value, true
 }
 
-func (c *Cache) Count() int {
+func (c *Cache[K, V]) Count() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -92,28 +93,29 @@ func (c *Cache) Count() int {
 	return count
 }
 
-func (c *Cache) Delete(key string) {
+func (c *Cache[K, V]) Delete(key K) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	delete(c.items, key)
 }
 
-func (c *Cache) Release(key string) (interface{}, bool) {
+func (c *Cache[K, V]) Release(key K) (V, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	it, ok := c.items[key]
 	if !ok || time.Now().After(it.expiryTime) {
 		delete(c.items, key)
-		return nil, false
+		var zero V
+		return zero, false
 	}
 
 	delete(c.items, key)
 	return it.value, true
 }
 
-func (c *Cache) cleanup() {
+func (c *Cache[K, V]) cleanup() {
 	ticker := time.NewTicker(c.ttl)
 	defer ticker.Stop()
 
