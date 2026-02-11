@@ -11,17 +11,19 @@ type item[V any] struct {
 }
 
 type Cache[K comparable, V any] struct {
-	mu    sync.Mutex
-	items map[K]item[V]
-	ttl   time.Duration
-	done  chan struct{}
+	mu              sync.Mutex
+	items           map[K]item[V]
+	ttl             time.Duration
+	cleanupInterval time.Duration
+	done            chan struct{}
 }
 
-func NewCache[K comparable, V any](ttl time.Duration) *Cache[K, V] {
+func NewCache[K comparable, V any](ttl, cleanupInterval time.Duration) *Cache[K, V] {
 	c := &Cache[K, V]{
-		items: make(map[K]item[V]),
-		ttl:   ttl,
-		done:  make(chan struct{}),
+		items:           make(map[K]item[V]),
+		ttl:             ttl,
+		cleanupInterval: cleanupInterval,
+		done:            make(chan struct{}),
 	}
 
 	go c.cleanup()
@@ -116,7 +118,7 @@ func (c *Cache[K, V]) Release(key K) (V, bool) {
 }
 
 func (c *Cache[K, V]) cleanup() {
-	ticker := time.NewTicker(c.ttl)
+	ticker := time.NewTicker(c.cleanupInterval)
 	defer ticker.Stop()
 
 	for {
