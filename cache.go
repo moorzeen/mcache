@@ -14,17 +14,23 @@ type Cache struct {
 	mu    sync.Mutex
 	items map[string]item
 	ttl   time.Duration
+	done  chan struct{}
 }
 
 func NewCache(ttl time.Duration) *Cache {
 	c := &Cache{
 		items: make(map[string]item),
 		ttl:   ttl,
+		done:  make(chan struct{}),
 	}
 
 	go c.cleanup()
 
 	return c
+}
+
+func (c *Cache) Close() {
+	close(c.done)
 }
 
 func (c *Cache) GetAll() map[string]interface{} {
@@ -84,16 +90,21 @@ func (c *Cache) cleanup() {
 	ticker := time.NewTicker(c.ttl)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		now := time.Now()
-		c.mu.Lock()
+	for {
+		select {
+		case <-ticker.C:
+			now := time.Now()
+			c.mu.Lock()
 
-		for k, it := range c.items {
-			if now.After(it.expiryTime) {
-				delete(c.items, k)
+			for k, it := range c.items {
+				if now.After(it.expiryTime) {
+					delete(c.items, k)
+				}
 			}
-		}
 
-		c.mu.Unlock()
+			c.mu.Unlock()
+		case <-c.done:
+			return
+		}
 	}
 }
