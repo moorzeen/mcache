@@ -43,6 +43,8 @@ func (c *Cache) GetAll() map[string]interface{} {
 	for k, it := range c.items {
 		if now.Before(it.expiryTime) {
 			result[k] = it.value
+		} else {
+			delete(c.items, k)
 		}
 	}
 
