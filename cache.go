@@ -72,6 +72,13 @@ func (c *Cache) Get(key string) (interface{}, bool) {
 	return it.value, true
 }
 
+func (c *Cache) Delete(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	delete(c.items, key)
+}
+
 func (c *Cache) Release(key string) (interface{}, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
