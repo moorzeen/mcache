@@ -74,6 +74,24 @@ func (c *Cache) Get(key string) (interface{}, bool) {
 	return it.value, true
 }
 
+func (c *Cache) Count() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	now := time.Now()
+	count := 0
+
+	for k, it := range c.items {
+		if now.Before(it.expiryTime) {
+			count++
+		} else {
+			delete(c.items, k)
+		}
+	}
+
+	return count
+}
+
 func (c *Cache) Delete(key string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
